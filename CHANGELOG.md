@@ -1,7 +1,7 @@
 # Changelog
 
-All notable changes to `:package_name` will be documented in this file.
+All notable changes to `filament-pwa-plugin` will be documented in this file.
 
-## 1.0.0 - 202X-XX-XX
+## 1.0.0 - 2026-08-14
 
-- initial release
+- Initial release with per-panel manifests, isolated service workers, safe offline fallback, configurable icons, and fluent panel overrides.
