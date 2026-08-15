@@ -1,3 +1,4 @@
+const APP_SCOPE = @json($appScope);
 const CACHE_NAME = @json($cacheName);
 const CACHE_PREFIX = @json($cachePrefix);
 const OFFLINE_URL = @json($offlineUrl);
@@ -32,8 +33,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const request = event.request;
     const url = new URL(request.url);
+    const isInScope = APP_SCOPE === '/'
+        || url.pathname === APP_SCOPE
+        || url.pathname.startsWith(`${APP_SCOPE}/`);
 
-    if (request.method !== 'GET' || url.origin !== self.location.origin) {
+    if (request.method !== 'GET' || url.origin !== self.location.origin || !isInScope) {
         return;
     }
 

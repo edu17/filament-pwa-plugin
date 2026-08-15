@@ -8,7 +8,10 @@ use Closure;
 use Edu17\FilamentPwaPlugin\Http\Controllers\ManifestController;
 use Edu17\FilamentPwaPlugin\Http\Controllers\OfflineController;
 use Edu17\FilamentPwaPlugin\Http\Controllers\ServiceWorkerController;
+use Edu17\FilamentPwaPlugin\Pages\ManagePwaSettings;
+use Edu17\FilamentPwaPlugin\Support\PwaSettingsRepository;
 use Filament\Contracts\Plugin;
+use Filament\Facades\Filament;
 use Filament\Panel;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Contracts\Support\Htmlable;
@@ -41,6 +44,13 @@ class FilamentPwaPlugin implements Plugin
 
     protected string | Closure | null $manifestId = null;
 
+    protected bool | Closure | null $hasSettingsPage = null;
+
+    /** @var array<int, string> | Closure | null */
+    protected array | Closure | null $manageablePanels = null;
+
+    protected ?Closure $settingsAuthorization = null;
+
     /** @var array<int, array<string, string>> | Closure | null */
     protected array | Closure | null $icons = null;
 
@@ -51,31 +61,33 @@ class FilamentPwaPlugin implements Plugin
 
     public function register(Panel $panel): void
     {
-        if (! $this->isEnabled($panel)) {
-            return;
+        if ($this->hasSettingsPage($panel)) {
+            $panel->pages([ManagePwaSettings::class]);
         }
 
-        $panel
-            ->routes(function (Panel $panel): void {
-                Route::get('/manifest.webmanifest', ManifestController::class)
-                    ->defaults('pwaPanel', $panel->getId())
-                    ->name('pwa.manifest');
+        if ($this->isEnabled($panel)) {
+            $panel
+                ->routes(function (Panel $panel): void {
+                    Route::get('/manifest.webmanifest', ManifestController::class)
+                        ->defaults('pwaPanel', $panel->getId())
+                        ->name('pwa.manifest');
 
-                Route::get('/pwa-service-worker.js', ServiceWorkerController::class)
-                    ->defaults('pwaPanel', $panel->getId())
-                    ->name('pwa.service-worker');
+                    Route::get('/pwa-service-worker.js', ServiceWorkerController::class)
+                        ->defaults('pwaPanel', $panel->getId())
+                        ->name('pwa.service-worker');
 
-                Route::get('/offline', OfflineController::class)
-                    ->defaults('pwaPanel', $panel->getId())
-                    ->name('pwa.offline');
-            })
-            ->renderHook(
-                PanelsRenderHook::HEAD_END,
-                fn (): View => view('filament-pwa-plugin::head', [
-                    'panel' => $panel,
-                    'plugin' => $this,
-                ]),
-            );
+                    Route::get('/offline', OfflineController::class)
+                        ->defaults('pwaPanel', $panel->getId())
+                        ->name('pwa.offline');
+                })
+                ->renderHook(
+                    PanelsRenderHook::HEAD_END,
+                    fn (): View => view('filament-pwa-plugin::head', [
+                        'panel' => $panel,
+                        'plugin' => $this,
+                    ]),
+                );
+        }
     }
 
     public function boot(Panel $panel): void
@@ -174,6 +186,28 @@ class FilamentPwaPlugin implements Plugin
         return $this;
     }
 
+    public function settingsPage(bool | Closure $condition = true): static
+    {
+        $this->hasSettingsPage = $condition;
+
+        return $this;
+    }
+
+    /** @param array<int, string> | Closure $panels */
+    public function managePanels(array | Closure $panels): static
+    {
+        $this->manageablePanels = $panels;
+
+        return $this;
+    }
+
+    public function authorizeSettingsUsing(?Closure $callback): static
+    {
+        $this->settingsAuthorization = $callback;
+
+        return $this;
+    }
+
     /** @param array<int, array<string, string>> | Closure | null $icons */
     public function icons(array | Closure | null $icons): static
     {
@@ -190,7 +224,8 @@ class FilamentPwaPlugin implements Plugin
 
     public function getName(Panel $panel): string
     {
-        $name = $this->evaluate($this->name, $panel)
+        $name = $this->storedValue($panel, 'name')
+            ?? $this->evaluate($this->name, $panel)
             ?? config('pwa-plugin.manifest.name')
             ?? $panel->getBrandName();
 
@@ -203,38 +238,44 @@ class FilamentPwaPlugin implements Plugin
 
     public function getShortName(Panel $panel): string
     {
-        return (string) ($this->evaluate($this->shortName, $panel)
+        return (string) ($this->storedValue($panel, 'short_name')
+            ?? $this->evaluate($this->shortName, $panel)
             ?? config('pwa-plugin.manifest.short_name')
             ?? $this->getName($panel));
     }
 
     public function getDescription(Panel $panel): ?string
     {
-        return $this->evaluate($this->description, $panel)
+        return $this->storedValue($panel, 'description')
+            ?? $this->evaluate($this->description, $panel)
             ?? config('pwa-plugin.manifest.description');
     }
 
     public function getThemeColor(Panel $panel): string
     {
-        return (string) ($this->evaluate($this->themeColor, $panel)
+        return (string) ($this->storedValue($panel, 'theme_color')
+            ?? $this->evaluate($this->themeColor, $panel)
             ?? config('pwa-plugin.manifest.theme_color', '#18181b'));
     }
 
     public function getBackgroundColor(Panel $panel): string
     {
-        return (string) ($this->evaluate($this->backgroundColor, $panel)
+        return (string) ($this->storedValue($panel, 'background_color')
+            ?? $this->evaluate($this->backgroundColor, $panel)
             ?? config('pwa-plugin.manifest.background_color', '#ffffff'));
     }
 
     public function getDisplay(Panel $panel): string
     {
-        return (string) ($this->evaluate($this->display, $panel)
+        return (string) ($this->storedValue($panel, 'display')
+            ?? $this->evaluate($this->display, $panel)
             ?? config('pwa-plugin.manifest.display', 'standalone'));
     }
 
     public function getOrientation(Panel $panel): ?string
     {
-        return $this->evaluate($this->orientation, $panel)
+        return $this->storedValue($panel, 'orientation')
+            ?? $this->evaluate($this->orientation, $panel)
             ?? config('pwa-plugin.manifest.orientation');
     }
 
@@ -268,7 +309,8 @@ class FilamentPwaPlugin implements Plugin
     public function getIcons(Panel $panel): array
     {
         /** @var array<int, array<string, string>> $icons */
-        $icons = $this->evaluate($this->icons, $panel)
+        $icons = $this->storedValue($panel, 'icons')
+            ?? $this->evaluate($this->icons, $panel)
             ?? config('pwa-plugin.icons', []);
 
         return $icons;
@@ -276,24 +318,39 @@ class FilamentPwaPlugin implements Plugin
 
     public function getAppleTouchIcon(Panel $panel): ?string
     {
-        $icon = config('pwa-plugin.apple_touch_icon');
-
-        if (filled($icon)) {
-            return $this->resolveAssetUrl((string) $icon);
-        }
-
         foreach ($this->getIcons($panel) as $candidate) {
             if (($candidate['sizes'] ?? null) === '180x180') {
                 return $this->resolveAssetUrl($candidate['src']);
             }
         }
 
-        return null;
+        $icon = config('pwa-plugin.apple_touch_icon');
+
+        return filled($icon) ? $this->resolveAssetUrl((string) $icon) : null;
     }
 
-    public function getCacheVersion(): string
+    public function getOfflineTitle(Panel $panel): string
     {
-        return (string) config('pwa-plugin.offline.cache_version', '1');
+        return (string) ($this->storedValue($panel, 'offline_title')
+            ?? config('pwa-plugin.offline.title', 'You are offline'));
+    }
+
+    public function getOfflineMessage(Panel $panel): string
+    {
+        return (string) ($this->storedValue($panel, 'offline_message')
+            ?? config('pwa-plugin.offline.message', 'Check your internet connection and try again.'));
+    }
+
+    public function getOfflineRetryLabel(Panel $panel): string
+    {
+        return (string) ($this->storedValue($panel, 'offline_retry_label')
+            ?? config('pwa-plugin.offline.retry_label', 'Try again'));
+    }
+
+    public function getCacheVersion(Panel $panel): string
+    {
+        return (string) ($this->storedValue($panel, 'cache_version')
+            ?? config('pwa-plugin.offline.cache_version', '1'));
     }
 
     /** @return array<int, string> */
@@ -311,15 +368,55 @@ class FilamentPwaPlugin implements Plugin
         return asset($url);
     }
 
+    public function hasSettingsPage(Panel $panel): bool
+    {
+        if ($this->hasSettingsPage !== null) {
+            return (bool) $this->evaluate($this->hasSettingsPage, $panel);
+        }
+
+        return (bool) config('pwa-plugin.settings.enabled', false)
+            && in_array($panel->getId(), config('pwa-plugin.settings.navigation_panels', []), true);
+    }
+
+    /** @return array<int, string> */
+    public function getManageablePanelIds(Panel $panel): array
+    {
+        /** @var array<int, string> $panels */
+        $panels = $this->evaluate($this->manageablePanels, $panel)
+            ?? config('pwa-plugin.settings.manageable_panels', []);
+
+        return $panels;
+    }
+
+    public function canManageSettings(Panel $panel): bool
+    {
+        if ($this->settingsAuthorization) {
+            return (bool) ($this->settingsAuthorization)(Filament::auth()->user(), $panel);
+        }
+
+        if (filled($ability = config('pwa-plugin.settings.ability'))) {
+            return Filament::auth()->user()?->can((string) $ability) === true;
+        }
+
+        return Filament::auth()->check();
+    }
+
     protected function evaluate(mixed $value, Panel $panel): mixed
     {
         return $value instanceof Closure ? $value($panel) : $value;
     }
 
+    protected function storedValue(Panel $panel, string $key): mixed
+    {
+        if (! config('pwa-plugin.settings.enabled', false)) {
+            return null;
+        }
+
+        return app(PwaSettingsRepository::class)->value($panel->getId(), $key);
+    }
+
     protected function normalizeScope(string $scope): string
     {
-        $scope = '/' . trim($scope, '/');
-
-        return $scope === '/' ? $scope : "{$scope}/";
+        return '/' . trim($scope, '/');
     }
 }

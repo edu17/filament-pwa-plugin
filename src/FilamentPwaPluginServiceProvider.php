@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Edu17\FilamentPwaPlugin;
 
+use Edu17\FilamentPwaPlugin\Support\PwaSettingsRepository;
 use Filament\Support\Assets\Asset;
 use Filament\Support\Assets\Js;
 use Filament\Support\Facades\FilamentAsset;
@@ -24,6 +25,8 @@ class FilamentPwaPluginServiceProvider extends PackageServiceProvider
                 $command
                     ->publishConfigFile()
                     ->publishAssets()
+                    ->publishMigrations()
+                    ->askToRunMigrations()
                     ->endWith(function (InstallCommand $command): void {
                         $command->call('filament:assets');
                     })
@@ -45,6 +48,15 @@ class FilamentPwaPluginServiceProvider extends PackageServiceProvider
         if (file_exists($package->basePath('/../resources/views'))) {
             $package->hasViews(static::$viewNamespace);
         }
+
+        if (file_exists($package->basePath('/../database/migrations'))) {
+            $package->hasMigrations('create_filament_pwa_settings_table');
+        }
+    }
+
+    public function packageRegistered(): void
+    {
+        $this->app->singleton(PwaSettingsRepository::class);
     }
 
     public function packageBooted(): void

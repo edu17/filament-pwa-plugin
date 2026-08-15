@@ -17,11 +17,11 @@ class OfflineController
 
         return view('filament-pwa-plugin::offline', [
             'backgroundColor' => $plugin->getBackgroundColor($panel),
-            'message' => config('pwa-plugin.offline.message'),
+            'message' => $plugin->getOfflineMessage($panel),
             'name' => $plugin->getName($panel),
-            'retryLabel' => config('pwa-plugin.offline.retry_label'),
+            'retryLabel' => $plugin->getOfflineRetryLabel($panel),
             'themeColor' => $plugin->getThemeColor($panel),
-            'title' => config('pwa-plugin.offline.title'),
+            'title' => $plugin->getOfflineTitle($panel),
         ]);
     }
 }

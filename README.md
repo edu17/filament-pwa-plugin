@@ -15,7 +15,7 @@ Install the package with Composer:
 composer require edu17/filament-pwa-plugin
 ```
 
-Publish the configuration and PWA icons, then install the Filament assets:
+Publish the configuration, migration, and PWA icons, run the migration, then install the Filament assets:
 
 ```bash
 php artisan filament-pwa-plugin:install
@@ -36,6 +36,12 @@ public function panel(Panel $panel): Panel
 ```
 
 Service workers require HTTPS in production. Localhost is allowed for local development.
+
+If uploaded icons are stored on the default `public` disk, make sure the application has its storage link:
+
+```bash
+php artisan storage:link
+```
 
 ## Configuration
 
@@ -89,6 +95,53 @@ FilamentPwaPlugin::make()
     ->enabled(fn (Panel $panel): bool => $panel->getId() !== 'internal');
 ```
 
+## Settings page
+
+The optional settings page stores manifest, offline, and icon values independently for each managed panel. Enable it in the configuration, select where its navigation should appear, and list the panels it may configure:
+
+```php
+// config/pwa-plugin.php
+'settings' => [
+    'enabled' => true,
+    'navigation_panels' => ['superadmin'],
+    'manageable_panels' => ['admin'],
+    'ability' => null,
+    'disk' => 'public',
+    'directory' => 'filament-pwa-plugin',
+],
+```
+
+Register the plugin on both panels. It can remain disabled as a PWA on the panel that only hosts the settings page:
+
+```php
+// SuperadminPanelProvider.php
+FilamentPwaPlugin::make()
+    ->enabled(false);
+
+// AdminPanelProvider.php
+FilamentPwaPlugin::make()
+    ->name('My application');
+```
+
+No roles package is required. By default, any authenticated user with access to the panel containing the settings page may use it. Applications with permissions can set a Gate ability in the same configuration:
+
+```php
+'ability' => 'manage-pwa-settings',
+```
+
+For custom authorization, override the settings-page registration with a callback instead:
+
+```php
+FilamentPwaPlugin::make()
+    ->settingsPage()
+    ->managePanels(['admin'])
+    ->authorizeSettingsUsing(
+        fn ($user, Panel $panel): bool => $user?->is_super_admin === true,
+    );
+```
+
+The page accepts one square source image of at least 512×512 pixels and generates 192×192, 512×512, maskable 512×512, and Apple 180×180 PNG files. GD or Imagick must be available in PHP.
+
 ## Icons
 
 The installation command publishes default icons to `public/vendor/filament-pwa-plugin/icons`. Replace them with your application's branded PNG files or configure custom URLs in `config/pwa-plugin.php`.
@@ -109,7 +162,7 @@ php artisan filament:assets
 
 ## Offline behavior
 
-The service worker is scoped to the panel path. For example, a panel at `/admin` receives a `/admin/` scope and does not control the rest of the Laravel application.
+The service worker is scoped to the panel path. For example, a panel at `/admin` receives an `/admin` scope and does not handle requests outside `/admin` or `/admin/...`.
 
 The safe default strategy:
 

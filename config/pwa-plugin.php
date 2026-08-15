@@ -46,4 +46,13 @@ return [
         'message' => 'Check your internet connection and try again.',
         'retry_label' => 'Try again',
     ],
+
+    'settings' => [
+        'enabled' => false,
+        'navigation_panels' => [],
+        'manageable_panels' => [],
+        'ability' => null,
+        'disk' => 'public',
+        'directory' => 'filament-pwa-plugin',
+    ],
 ];

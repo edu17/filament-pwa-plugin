@@ -34,7 +34,8 @@ class ServiceWorkerController
 
         return response()
             ->view('filament-pwa-plugin::service-worker', [
-                'cacheName' => "{$cachePrefix}-{$plugin->getCacheVersion()}",
+                'appScope' => $plugin->getScope($panel),
+                'cacheName' => "{$cachePrefix}-{$plugin->getCacheVersion($panel)}",
                 'cachePrefix' => $cachePrefix,
                 'offlineUrl' => $offlineUrl,
                 'precacheUrls' => $precacheUrls,
