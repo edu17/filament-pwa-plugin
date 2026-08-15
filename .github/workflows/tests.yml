@@ -24,11 +24,11 @@ jobs:
         include:
           - laravel: 12.*
             testbench: 10.*
-            carbon: 3.*
+            carbon: ^3.8.4
             collision: 8.*
           - laravel: 11.*
             testbench: 9.*
-            carbon: 3.*
+            carbon: ^3.8.4
             collision: 8.*
 
     name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.stability }} - ${{ matrix.os }}

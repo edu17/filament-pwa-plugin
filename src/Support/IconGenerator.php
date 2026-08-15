@@ -48,11 +48,11 @@ class IconGenerator
     protected function manager(): ImageManager
     {
         if (extension_loaded('imagick')) {
-            return ImageManager::imagick(strip: true);
+            return ImageManager::imagick();
         }
 
         if (extension_loaded('gd')) {
-            return ImageManager::gd(strip: true);
+            return ImageManager::gd();
         }
 
         throw new RuntimeException('Generating PWA icons requires the GD or Imagick PHP extension.');
